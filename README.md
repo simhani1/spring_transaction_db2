@@ -120,3 +120,15 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 #### 프록시 방식의 AOP 한계
 - `@Transaction`를 사용하는 트랜잭션 AOP는 프록시를 사용한다. 그리고 프록시를 사용하면 메서드 내부 호출에 프록시를 적용할 수 없다.
 - 이 문제를 해결하기 위해서는 `internal()` 메서드를 별도의 클래스로 분리시키는 것이 제일 간단한 방법 중 하나다.
+![img.png](img/img_4.png)
+
+- 결과(외부 클래스의 `internal()`메서드를 호출하는 경우)
+```text
+2023-10-04 02:25:47.099  INFO 4591 --- [    Test worker] h.s.a.InternalCallV2Test$CallService     : call external
+2023-10-04 02:25:47.100  INFO 4591 --- [    Test worker] h.s.a.InternalCallV2Test$CallService     : tx active=false
+
+2023-10-04 02:25:47.147 TRACE 4591 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.apply.InternalCallV2Test$InternalService.internal]
+2023-10-04 02:25:47.153  INFO 4591 --- [    Test worker] h.s.a.InternalCallV2Test$InternalService : call internal
+2023-10-04 02:25:47.154  INFO 4591 --- [    Test worker] h.s.a.InternalCallV2Test$InternalService : tx active=true
+2023-10-04 02:25:47.154 TRACE 4591 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.apply.InternalCallV2Test$InternalService.internal]
+```
