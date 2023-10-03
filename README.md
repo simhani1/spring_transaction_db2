@@ -132,3 +132,36 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 2023-10-04 02:25:47.154  INFO 4591 --- [    Test worker] h.s.a.InternalCallV2Test$InternalService : tx active=true
 2023-10-04 02:25:47.154 TRACE 4591 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.apply.InternalCallV2Test$InternalService.internal]
 ```
+
+## 트랜잭션 AOP 주의 사항 - 초기화 시점
+
+#### `@PostConstruct`와 `@Transactional`을 함께 사용
+- `@PostConstruct`와 `@Transactional`을 함께 사용하면 트랜잭션이 적용되지 않는다.
+- 초기화 코드가 먼저 호출되고, 그 다음에 트랜잭션 AOP가 적용된다. 따라서 초기화 시점에 해당 메서드에 대한 트랜잭션은 얻을 수 없다.
+```java
+        @PostConstruct
+        @Transactional
+        public void initV1() {
+            boolean isActive = TransactionSynchronizationManager.isActualTransactionActive();
+            log.info("Hello init @PostConstruct tx active={}", isActive);
+        }
+```
+
+#### ApplicationReadyEvent 사용
+```java
+        @EventListener(value = ApplicationReadyEvent.class)
+        @Transactional
+        public void initV2() {
+            boolean isActive = TransactionSynchronizationManager.isActualTransactionActive();
+            log.info("Hello init ApplicationReadyEvent tx active={}", isActive);
+        }
+```
+
+- 결과
+```text
+2023-10-04 03:14:45.018  INFO 5330 --- [    Test worker] hello.springtx.apply.InitTxTest$Hello    : Hello init @PostConstruct tx active=false
+
+2023-10-04 03:14:45.119 TRACE 5330 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.apply.InitTxTest$Hello.initV2]
+2023-10-04 03:14:45.123  INFO 5330 --- [    Test worker] hello.springtx.apply.InitTxTest$Hello    : Hello init ApplicationReadyEvent tx active=true
+2023-10-04 03:14:45.123 TRACE 5330 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.apply.InitTxTest$Hello.initV2]
+```
