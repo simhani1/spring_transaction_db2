@@ -165,3 +165,81 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 2023-10-04 03:14:45.123  INFO 5330 --- [    Test worker] hello.springtx.apply.InitTxTest$Hello    : Hello init ApplicationReadyEvent tx active=true
 2023-10-04 03:14:45.123 TRACE 5330 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.apply.InitTxTest$Hello.initV2]
 ```
+
+## 예외와 트랜잭션 커밋, 롤백 - 기본
+
+#### 예외 발생 시 트랜잭션 AOP는 예외의 종류에 따라 트랜잭션을 커밋하거나 롤백한다.
+
+- 언체크 예외(`RuntimeException`, `Error`)
+  - 트랜잭션 롤백
+- 체크 예외(`Exception`)
+  - 트랜잭션 커밋
+
+#### rollbackFor 옵션을 사용하여 체크 예외가 발생할 때 트랜잭션을 롤백하도록 설정
+```java
+    @Slf4j
+    static class RollbackService {
+
+        // 런타임 예외 발생: 롤백
+        @Transactional
+        public void runtimeException() {
+            log.info("call runtimeException");
+            throw new RuntimeException();
+        }
+
+        // 체크 예외 발생: 커밋
+        @Transactional
+        public void checkedException() throws MyException {
+            log.info("call checkedException");
+            throw new MyException();
+        }
+
+        // 체크 예외 rollbackFor 지정: 롤백
+        @Transactional(rollbackFor = MyException.class)
+        public void rollbackFor() throws MyException {
+            log.info("call checkedException");
+            throw new MyException();
+        }
+    }
+```
+
+- 결과 
+- 런타임 예외
+```text
+2023-10-07 02:03:13.059 DEBUG 30444 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [hello.springtx.exception.RollbackTest$RollbackService.runtimeException]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-07 02:03:13.090 DEBUG 30444 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(427006214<open>)] for JPA transaction
+2023-10-07 02:03:13.092 DEBUG 30444 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@3815a7d1]
+2023-10-07 02:03:13.092 TRACE 30444 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.exception.RollbackTest$RollbackService.runtimeException]
+2023-10-07 02:03:13.096  INFO 30444 --- [    Test worker] h.s.e.RollbackTest$RollbackService       : call runtimeException
+2023-10-07 02:03:13.096 TRACE 30444 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.exception.RollbackTest$RollbackService.runtimeException] after exception: java.lang.RuntimeException
+2023-10-07 02:03:13.096 DEBUG 30444 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction rollback
+2023-10-07 02:03:13.096 DEBUG 30444 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Rolling back JPA transaction on EntityManager [SessionImpl(427006214<open>)]
+2023-10-07 02:03:13.097 DEBUG 30444 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(427006214<open>)] after transaction
+```
+
+- 체크 예외
+```text
+2023-10-07 02:04:07.933 DEBUG 30459 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [hello.springtx.exception.RollbackTest$RollbackService.checkedException]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-07 02:04:07.961 DEBUG 30459 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(427006214<open>)] for JPA transaction
+2023-10-07 02:04:07.962 DEBUG 30459 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@3815a7d1]
+2023-10-07 02:04:07.963 TRACE 30459 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.exception.RollbackTest$RollbackService.checkedException]
+2023-10-07 02:04:07.966  INFO 30459 --- [    Test worker] h.s.e.RollbackTest$RollbackService       : call checkedException
+2023-10-07 02:04:07.966 TRACE 30459 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.exception.RollbackTest$RollbackService.checkedException] after exception: hello.springtx.exception.RollbackTest$MyException
+2023-10-07 02:04:07.966 DEBUG 30459 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-07 02:04:07.966 DEBUG 30459 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(427006214<open>)]
+2023-10-07 02:04:07.967 DEBUG 30459 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(427006214<open>)] after transaction
+```
+
+- `@Transactional(rollbackFor = MyException.class)`
+```text
+2023-10-07 02:04:55.479 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [hello.springtx.exception.RollbackTest$RollbackService.rollbackFor]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT,-hello.springtx.exception.RollbackTest$MyException
+2023-10-07 02:04:55.507 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(329929969<open>)] for JPA transaction
+2023-10-07 02:04:55.509 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@1d2d4d7a]
+2023-10-07 02:04:55.509 TRACE 30471 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.exception.RollbackTest$RollbackService.rollbackFor]
+2023-10-07 02:04:55.513  INFO 30471 --- [    Test worker] h.s.e.RollbackTest$RollbackService       : call checkedException
+2023-10-07 02:04:55.514 TRACE 30471 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.exception.RollbackTest$RollbackService.rollbackFor] after exception: hello.springtx.exception.RollbackTest$MyException
+2023-10-07 02:04:55.514 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction rollback
+2023-10-07 02:04:55.514 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Rolling back JPA transaction on EntityManager [SessionImpl(329929969<open>)]
+2023-10-07 02:04:55.515 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(329929969<open>)] after transaction
+```
+
