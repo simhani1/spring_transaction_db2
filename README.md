@@ -243,3 +243,76 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 2023-10-07 02:04:55.515 DEBUG 30471 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(329929969<open>)] after transaction
 ```
 
+## 예외와 트랜잭션 커밋, 롤백 - 활용
+
+#### 왜 체크 예외는 커밋하고 언체크 예외는 롤백하는가?
+- 스프링은 기본적으로 체크 예외는 비즈니스 의미가 있을 때 사용하고, 런타임 예외는 복구 불가능한 예외로 가정한다.
+- 체크 예외
+  - 비즈니스 의미가 있을 때 사용(시스템에는 문제가 없고 비즈니스 상황에 문제가 있는 예외이다.)
+- 언체크 예외
+  - 복구 불가능한 예외
+
+#### 요구사항
+> 주문을 하는데 상황에 따라 다음과 같이 조치한다.
+> 1. 정상: 주문시 결제를 성공하면 주문 데이터를 저장하고 결제 상태를 완료 로 처리한다.
+> 2. 시스템 예외: 주문시 내부에 복구 불가능한 예외가 발생하면 전체 데이터를 롤백한다.
+> 3. 비즈니스 예외: 주문시 결제 잔고가 부족하면 주문 데이터를 저장하고, 결제 상태를 대기 로 처리한다. 이 경우 고객에게 잔고 부족을 알리고 별도의 계좌로 입금하도록 안내한다.
+
+- 정상 주문
+```text
+2023-10-09 01:17:39.883 TRACE 39452 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.order.OrderService.order]
+2023-10-09 01:17:39.889  INFO 39452 --- [    Test worker] hello.springtx.order.OrderService        : order 호출
+2023-10-09 01:17:39.890 DEBUG 39452 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Found thread-bound EntityManager [SessionImpl(1456947885<open>)] for JPA transaction
+2023-10-09 01:17:39.891 DEBUG 39452 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Participating in existing transaction
+2023-10-09 01:17:39.891 TRACE 39452 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.save]
+2023-10-09 01:17:39.895 DEBUG 39452 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-09 01:17:39.919 TRACE 39452 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.save]
+2023-10-09 01:17:39.919  INFO 39452 --- [    Test worker] hello.springtx.order.OrderService        : 결제 프로세스 진입
+2023-10-09 01:17:39.919  INFO 39452 --- [    Test worker] hello.springtx.order.OrderService        : 정상 승인
+2023-10-09 01:17:39.919  INFO 39452 --- [    Test worker] hello.springtx.order.OrderService        : 결제 프로세스 완료
+2023-10-09 01:17:39.919 TRACE 39452 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.order.OrderService.order]
+2023-10-09 01:17:39.919 DEBUG 39452 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-09 01:17:39.919 DEBUG 39452 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(1456947885<open>)]
+2023-10-09 01:17:39.924 DEBUG 39452 --- [    Test worker] org.hibernate.SQL                        : insert into orders (pay_status, username, id) values (?, ?, ?)
+2023-10-09 01:17:39.926 DEBUG 39452 --- [    Test worker] org.hibernate.SQL                        : update orders set pay_status=?, username=? where id=?
+```
+
+ 런타임 예외 발생(롤백)
+```text
+2023-10-09 01:18:32.953 TRACE 39467 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.save]
+2023-10-09 01:18:32.958 DEBUG 39467 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-09 01:18:32.986 TRACE 39467 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.save]
+2023-10-09 01:18:32.986  INFO 39467 --- [    Test worker] hello.springtx.order.OrderService        : 결제 프로세스 진입
+2023-10-09 01:18:32.986  INFO 39467 --- [    Test worker] hello.springtx.order.OrderService        : 시스템 예외 발생
+2023-10-09 01:18:32.986 TRACE 39467 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.order.OrderService.order] after exception: java.lang.RuntimeException: 시스템 예외
+2023-10-09 01:18:32.986 DEBUG 39467 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction rollback
+2023-10-09 01:18:32.986 DEBUG 39467 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Rolling back JPA transaction on EntityManager [SessionImpl(448512468<open>)]
+2023-10-09 01:18:32.987 DEBUG 39467 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(448512468<open>)] after transaction
+2023-10-09 01:18:32.999 DEBUG 39467 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [org.springframework.data.jpa.repository.support.SimpleJpaRepository.findById]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT,readOnly
+2023-10-09 01:18:33.000 DEBUG 39467 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(1200612373<open>)] for JPA transaction
+2023-10-09 01:18:33.000 DEBUG 39467 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@197180a5]
+2023-10-09 01:18:33.000 TRACE 39467 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.findById]
+2023-10-09 01:18:33.005 DEBUG 39467 --- [    Test worker] org.hibernate.SQL                        : select order0_.id as id1_0_0_, order0_.pay_status as pay_stat2_0_0_, order0_.username as username3_0_0_ from orders order0_ where order0_.id=?
+2023-10-09 01:18:33.008 TRACE 39467 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.findById]
+```
+
+- 체크 예외(비즈니스 예외, 커밋) 
+```text
+2023-10-09 01:19:52.679 TRACE 39484 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.order.OrderService.order]
+2023-10-09 01:19:52.684  INFO 39484 --- [    Test worker] hello.springtx.order.OrderService        : order 호출
+2023-10-09 01:19:52.686 DEBUG 39484 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Found thread-bound EntityManager [SessionImpl(1456947885<open>)] for JPA transaction
+2023-10-09 01:19:52.686 DEBUG 39484 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Participating in existing transaction
+2023-10-09 01:19:52.686 TRACE 39484 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.save]
+2023-10-09 01:19:52.691 DEBUG 39484 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-09 01:19:52.712 TRACE 39484 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [org.springframework.data.jpa.repository.support.SimpleJpaRepository.save]
+2023-10-09 01:19:52.712  INFO 39484 --- [    Test worker] hello.springtx.order.OrderService        : 결제 프로세스 진입
+2023-10-09 01:19:52.712  INFO 39484 --- [    Test worker] hello.springtx.order.OrderService        : 잔고 부족 비즈니스 예외 발생
+2023-10-09 01:19:52.712 TRACE 39484 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.order.OrderService.order] after exception: hello.springtx.order.NotEnoughMoneyException: 잔고가 부족합니다.
+2023-10-09 01:19:52.713 DEBUG 39484 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-09 01:19:52.713 DEBUG 39484 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(1456947885<open>)]
+2023-10-09 01:19:52.717 DEBUG 39484 --- [    Test worker] org.hibernate.SQL                        : insert into orders (pay_status, username, id) values (?, ?, ?)
+2023-10-09 01:19:52.719 DEBUG 39484 --- [    Test worker] org.hibernate.SQL                        : update orders set pay_status=?, username=? where id=?
+2023-10-09 01:19:52.721 DEBUG 39484 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(1456947885<open>)] after transaction
+2023-10-09 01:19:52.721  INFO 39484 --- [    Test worker] hello.springtx.order.OrderServiceTest    : 고객에게 잔고 부족을 알리고 별도의 계좌로 입금하도록 안내
+```
+
