@@ -316,3 +316,56 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 2023-10-09 01:19:52.721  INFO 39484 --- [    Test worker] hello.springtx.order.OrderServiceTest    : 고객에게 잔고 부족을 알리고 별도의 계좌로 입금하도록 안내
 ```
 
+## 스프링 트랜잭션 전파1 - 커밋, 롤백
+
+- 트랜잭션 획득 후 커밋
+```java
+    @Test
+    void commit() {
+        log.info("트랜잭션 시작");
+        TransactionStatus status = txManager.getTransaction(new DefaultTransactionAttribute());
+
+        log.info("트랜잭션 커밋 시작");
+        txManager.commit(status);
+        log.info("트랜잭션 커밋 완료");
+    }
+```
+
+- 결과
+```text
+2023-10-09 01:35:42.842  INFO 39820 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 시작
+2023-10-09 01:35:42.843 DEBUG 39820 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 01:35:42.843 DEBUG 39820 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@210158726 wrapping conn0: url=jdbc:h2:mem:898ca3c7-2d7b-479e-a521-b9385e70ac39 user=SA] for JDBC transaction
+2023-10-09 01:35:42.844 DEBUG 39820 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@210158726 wrapping conn0: url=jdbc:h2:mem:898ca3c7-2d7b-479e-a521-b9385e70ac39 user=SA] to manual commit
+2023-10-09 01:35:42.844  INFO 39820 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 커밋 시작
+2023-10-09 01:35:42.844 DEBUG 39820 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Initiating transaction commit
+2023-10-09 01:35:42.845 DEBUG 39820 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Committing JDBC transaction on Connection [HikariProxyConnection@210158726 wrapping conn0: url=jdbc:h2:mem:898ca3c7-2d7b-479e-a521-b9385e70ac39 user=SA]
+2023-10-09 01:35:42.845 DEBUG 39820 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@210158726 wrapping conn0: url=jdbc:h2:mem:898ca3c7-2d7b-479e-a521-b9385e70ac39 user=SA] after transaction
+2023-10-09 01:35:42.845  INFO 39820 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 커밋 완료
+```
+
+- 트랜잭션 획득 후 롤백
+```java
+    @Test
+    void rollback() {
+        log.info("트랜잭션 시작");
+        TransactionStatus status = txManager.getTransaction(new DefaultTransactionAttribute());
+
+        log.info("트랜잭션 롤백 시작");
+        txManager.rollback(status);
+        log.info("트랜잭션 롤백 완료");
+    }
+```
+
+- 결과
+```text
+2023-10-09 01:36:09.332  INFO 39829 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 시작
+2023-10-09 01:36:09.332 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 01:36:09.333 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@1688786293 wrapping conn0: url=jdbc:h2:mem:bb802044-3985-45f0-8e29-7a6bd92807a2 user=SA] for JDBC transaction
+2023-10-09 01:36:09.333 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@1688786293 wrapping conn0: url=jdbc:h2:mem:bb802044-3985-45f0-8e29-7a6bd92807a2 user=SA] to manual commit
+2023-10-09 01:36:09.333  INFO 39829 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 롤백 시작
+2023-10-09 01:36:09.333 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Initiating transaction rollback
+2023-10-09 01:36:09.333 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Rolling back JDBC transaction on Connection [HikariProxyConnection@1688786293 wrapping conn0: url=jdbc:h2:mem:bb802044-3985-45f0-8e29-7a6bd92807a2 user=SA]
+2023-10-09 01:36:09.333 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@1688786293 wrapping conn0: url=jdbc:h2:mem:bb802044-3985-45f0-8e29-7a6bd92807a2 user=SA] after transaction
+2023-10-09 01:36:09.333  INFO 39829 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 롤백 완료
+```
