@@ -373,6 +373,22 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 ## 스프링 트랜잭션 전파2 - 트랜잭션 두 번 사용
 
 - 각각의 트랜잭션이 시작되면 서로에게 영향이 없다.
+```java
+    @Test
+    void double_commit_rollback() {
+        log.info("트랜잭션1 시작");
+        TransactionStatus tx1 = txManager.getTransaction(new DefaultTransactionAttribute());
+        log.info("트랜잭션1 커밋");
+        txManager.commit(tx1);
+
+        log.info("트랜잭션2 시작");
+        TransactionStatus tx2 = txManager.getTransaction(new DefaultTransactionAttribute());
+        log.info("트랜잭션2 롤백");
+        txManager.rollback(tx2);
+    }
+```
+
+- 결과
 ```text
 2023-10-09 17:48:42.132  INFO 46554 --- [           main] hello.springtx.propogation.BasicTxTest   : 트랜잭션1 시작
 2023-10-09 17:48:42.132 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
