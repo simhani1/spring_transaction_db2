@@ -505,7 +505,11 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 
 ## 스프링 트랜잭션 전파7 - REQUIRES_NEW
 
-- `REQUIRES_NEW` 옵션으로 외부 트랜잭션과 내부 트랜잭션을 완전히 분리해서 각각 별도의 물리 트랜잭션으로 사용할 수 있다.
+#### 요청 흐름
+![img.png](img/img_9.png)
+
+#### 응답 흐름
+![img.png](img/img_10.png)
 
 - 테스트
 ```java
@@ -542,6 +546,8 @@ txManager.rollback(inner);
 ```
 
 - 외부/내부 트랜잭션이 서로 다른 물리 커넥션을 획득하고 각각의 트랜잭션을 사용하고 있다.
+- `REQUIRES_NEW` 옵션으로 외부 트랜잭션과 내부 트랜잭션을 완전히 분리해서 각각 별도의 물리 트랜잭션으로 사용할 수 있다.
+- 새로운 트랜잭션을 호출하면서 `conn1`은 보류되고 새로운 `conn2`를 내부 트랜잭션이 완료될 때까지 사용된다.
 
 > [!NOTE]
 > 
