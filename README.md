@@ -431,3 +431,35 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 > 
 > 모든 논리 트랜잭션이 커밋되어야 물리 트랜잭션이 커밋된다.
 > 하나의 논리 트랜잭션이라도 롤백되면 물리 트랜잭션은 롤백된다.
+
+## 스프링 트랜잭션 전파4 - 전파 예제
+
+#### 요청 흐름
+![img.png](img/img_6.png)
+
+#### 응답 흐름
+![img_1.png](img/img_7.png)
+
+- 결과
+```text
+2023-10-09 19:29:01.317  INFO 47493 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 외부 트랜잭션 시작
+2023-10-09 19:29:01.319 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 19:29:01.319 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@677726975 wrapping conn0: url=jdbc:h2:mem:ae3e24c9-b0dc-43e1-8474-ef435f000ce0 user=SA] for JDBC transaction
+2023-10-09 19:29:01.320 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@677726975 wrapping conn0: url=jdbc:h2:mem:ae3e24c9-b0dc-43e1-8474-ef435f000ce0 user=SA] to manual commit
+2023-10-09 19:29:01.320  INFO 47493 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : outer.isNewTransaction() = true
+2023-10-09 19:29:01.320  INFO 47493 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 내부 트랜잭션 시작
+2023-10-09 19:29:01.320 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Participating in existing transaction  // 신규 트랜잭션이 존재하는 경우 참여만 한다.
+2023-10-09 19:29:01.320  INFO 47493 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : inner.isNewTransaction() = false
+2023-10-09 19:29:01.320  INFO 47493 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 내부 트랜잭션 커밋  // 내부 트랜잭션이 커밋되어도 실제 물리 트랜잭션에 커밋이 되지 않는다.
+2023-10-09 19:29:01.320  INFO 47493 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 외부 트랜잭션 커밋  
+2023-10-09 19:29:01.320 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Initiating transaction commit
+2023-10-09 19:29:01.320 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Committing JDBC transaction on Connection [HikariProxyConnection@677726975 wrapping conn0: url=jdbc:h2:mem:ae3e24c9-b0dc-43e1-8474-ef435f000ce0 user=SA]
+2023-10-09 19:29:01.320 DEBUG 47493 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@677726975 wrapping conn0: url=jdbc:h2:mem:ae3e24c9-b0dc-43e1-8474-ef435f000ce0 user=SA] after transaction
+```
+
+> [!IMPORTANT]
+>
+> 트랜잭션 매니저에 커밋을 호출한다고 항상 실제 커넥션에 물리 커밋이 발생하지 않는다.
+> 신규 트랜잭션인 경우에만 실제 물리 커넥션을 사용해서 물리 커밋과 롤백을 수행한다.
+> 신규 트랜잭션이 아니라면 실제 물리 커넥션을 사용하지 않는다.
+> 따라서 내부 트랜잭션이 추가로 사용되면, 트랜잭션 매니저를 통해 논리 트랜잭션을 관리하고 모든 논리 트랜잭션이 커밋되어야 물리 트랜잭션이 커밋되는 것이다.
