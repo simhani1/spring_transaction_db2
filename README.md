@@ -471,3 +471,34 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 
 #### 응답 흐름
 ![img.png](img/img_8.png)
+
+## 스프링 트랜잭션 전파5 - 내부 롤백
+
+- 내부 트랜잭션이 롤백되면 해당 트랜잭션은 외부 트랜잭션에 `rollback-only` 마크를 트랜잭션 동기화 매니저에 기록한다.
+```text
+2023-10-09 22:15:18.220 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Participating transaction failed - marking existing transaction as rollback-only
+```
+
+- 트랜잭션 매니저는 신규 트랜잭션인 경우 실제 커넥션에 커밋을 호출한다. 이때 트랜잭션 동기화 매니저에 롤백 전용(`rollback-only`)마크가 있는지 확인하다.
+- 시스템 입장에서는 커밋을 호출했지만 롤백되었다는 사실을 분명하게 알려줘야 한다.
+- 스프링은 이 경우 `UnexpectedRollbackException` 런타임 예외를 던져 커밋을 시도했지만 예상치 못한 롤백이 발생했음을 알린다.
+
+- 결과
+```text
+2023-10-09 22:15:18.218  INFO 49945 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 외부 트랜잭션 시작
+2023-10-09 22:15:18.219 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 22:15:18.219 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA] for JDBC transaction
+2023-10-09 22:15:18.220 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA] to manual commit
+2023-10-09 22:15:18.220  INFO 49945 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : outer.isNewTransaction() = true
+2023-10-09 22:15:18.220  INFO 49945 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 내부 트랜잭션 시작
+2023-10-09 22:15:18.220 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Participating in existing transaction
+2023-10-09 22:15:18.220  INFO 49945 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : inner.isNewTransaction() = false
+2023-10-09 22:15:18.220  INFO 49945 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 내부 트랜잭션 롤백
+2023-10-09 22:15:18.220 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Participating transaction failed - marking existing transaction as rollback-only
+2023-10-09 22:15:18.220 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Setting JDBC transaction [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA] rollback-only
+2023-10-09 22:15:18.220  INFO 49945 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 외부 트랜잭션 커밋
+2023-10-09 22:15:18.242 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Global transaction is marked as rollback-only but transactional code requested commit
+2023-10-09 22:15:18.242 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Initiating transaction rollback
+2023-10-09 22:15:18.242 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Rolling back JDBC transaction on Connection [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA]
+2023-10-09 22:15:18.243 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA] after transaction
+```
