@@ -502,3 +502,48 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 2023-10-09 22:15:18.242 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Rolling back JDBC transaction on Connection [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA]
 2023-10-09 22:15:18.243 DEBUG 49945 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@694943195 wrapping conn0: url=jdbc:h2:mem:f8497e3a-b856-41ac-bf41-371c2e3df9e4 user=SA] after transaction
 ```
+
+## 스프링 트랜잭션 전파7 - REQUIRES_NEW
+
+- `REQUIRES_NEW` 옵션으로 외부 트랜잭션과 내부 트랜잭션을 완전히 분리해서 각각 별도의 물리 트랜잭션으로 사용할 수 있다.
+
+- 테스트
+```java
+log.info("내부 트랜잭션 시작");
+DefaultTransactionAttribute definition = new DefaultTransactionAttribute();
+definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+TransactionStatus inner = txManager.getTransaction(definition);
+log.info("inner.isNewTransaction() = {}", inner.isNewTransaction());  // true
+log.info("내부 트랜잭션 롤백");
+txManager.rollback(inner);
+```
+
+- 결과
+```text
+2023-10-09 22:29:18.158  INFO 50261 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 외부 트랜잭션 시작
+2023-10-09 22:29:18.159 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 22:29:18.159 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@181211485 wrapping conn0: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA] for JDBC transaction
+2023-10-09 22:29:18.160 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@181211485 wrapping conn0: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA] to manual commit
+2023-10-09 22:29:18.160  INFO 50261 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : outer.isNewTransaction() = true
+2023-10-09 22:29:18.160  INFO 50261 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 내부 트랜잭션 시작
+2023-10-09 22:29:18.160 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Suspending current transaction, creating new transaction with name [null]
+2023-10-09 22:29:18.160 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@581639050 wrapping conn1: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA] for JDBC transaction
+2023-10-09 22:29:18.160 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@581639050 wrapping conn1: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA] to manual commit
+2023-10-09 22:29:18.161  INFO 50261 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : inner.isNewTransaction() = true
+2023-10-09 22:29:18.161  INFO 50261 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 내부 트랜잭션 롤백
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Initiating transaction rollback
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Rolling back JDBC transaction on Connection [HikariProxyConnection@581639050 wrapping conn1: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA]
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@581639050 wrapping conn1: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA] after transaction
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Resuming suspended transaction after completion of inner transaction
+2023-10-09 22:29:18.161  INFO 50261 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 외부 트랜잭션 커밋
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Initiating transaction commit
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Committing JDBC transaction on Connection [HikariProxyConnection@181211485 wrapping conn0: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA]
+2023-10-09 22:29:18.161 DEBUG 50261 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@181211485 wrapping conn0: url=jdbc:h2:mem:c1b7c09b-2d41-468e-ba48-13c43218bc6b user=SA] after transaction
+```
+
+- 외부/내부 트랜잭션이 서로 다른 물리 커넥션을 획득하고 각각의 트랜잭션을 사용하고 있다.
+
+> [!NOTICE]
+> 
+> `REQUIRES_NEW` 옵션을 사용할 경우, 실제 DB 커넥션을 동시에 2개 사용하고 있다.
+> 따라서 성능이 중요하거나 트래픽이 몰리는 경우 커넥션의 수가 부족하여 장애가 발생할 수도 있으니 조심해야 한다.
