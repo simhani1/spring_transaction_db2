@@ -369,3 +369,32 @@ logging.level.org.springframework.transaction.interceptor=TRACE
 2023-10-09 01:36:09.333 DEBUG 39829 --- [    Test worker] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@1688786293 wrapping conn0: url=jdbc:h2:mem:bb802044-3985-45f0-8e29-7a6bd92807a2 user=SA] after transaction
 2023-10-09 01:36:09.333  INFO 39829 --- [    Test worker] hello.springtx.propogation.BasicTxTest   : 트랜잭션 롤백 완료
 ```
+
+## 스프링 트랜잭션 전파2 - 트랜잭션 두 번 사용
+
+- 각각의 트랜잭션이 시작되면 서로에게 영향이 없다.
+```text
+2023-10-09 17:48:42.132  INFO 46554 --- [           main] hello.springtx.propogation.BasicTxTest   : 트랜잭션1 시작
+2023-10-09 17:48:42.132 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 17:48:42.133 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@2034388773 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA] for JDBC transaction
+2023-10-09 17:48:42.133 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@2034388773 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA] to manual commit
+2023-10-09 17:48:42.133  INFO 46554 --- [           main] hello.springtx.propogation.BasicTxTest   : 트랜잭션1 커밋
+2023-10-09 17:48:42.133 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Initiating transaction commit
+2023-10-09 17:48:42.133 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Committing JDBC transaction on Connection [HikariProxyConnection@2034388773 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA]
+2023-10-09 17:48:42.133 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@2034388773 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA] after transaction
+2023-10-09 17:48:42.134  INFO 46554 --- [           main] hello.springtx.propogation.BasicTxTest   : 트랜잭션2 시작
+2023-10-09 17:48:42.134 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Creating new transaction with name [null]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-09 17:48:42.134 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Acquired Connection [HikariProxyConnection@1607788159 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA] for JDBC transaction
+2023-10-09 17:48:42.134 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Switching JDBC Connection [HikariProxyConnection@1607788159 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA] to manual commit
+2023-10-09 17:48:42.135  INFO 46554 --- [           main] hello.springtx.propogation.BasicTxTest   : 트랜잭션2 롤백
+2023-10-09 17:48:42.135 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Initiating transaction rollback
+2023-10-09 17:48:42.135 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Rolling back JDBC transaction on Connection [HikariProxyConnection@1607788159 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA]
+2023-10-09 17:48:42.135 DEBUG 46554 --- [           main] o.s.j.d.DataSourceTransactionManager     : Releasing JDBC Connection [HikariProxyConnection@1607788159 wrapping conn0: url=jdbc:h2:mem:1e9af37d-dec6-41cf-a33c-1625aea75801 user=SA] after transaction
+```
+
+> [!NOTE]
+> 
+> 로그를 살펴보면 트랜잭션1, 2 모두 동일한 `conn0` 커넥션을 사용하고 있다. 
+> 이 둘은 서로 다른 커넥션으로 구분되어야 한다. 
+> 따라서 히카리 커넥션 풀에서 커넥션을 획득하면 실제 커넥션을 그대로 반환하지 않고, 내부 관리를 위해 히카리 프록시 커넥션 객체를 생성해서 반환한다. 
+> 이렇게 프록시 객체의 주소를 통해 동일한 커넥션을 따로 사용하는 것처럼 구분지을 수 있는 것이다.
