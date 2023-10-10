@@ -668,3 +668,13 @@ txManager.rollback(inner);
 2023-10-10 22:38:57.621 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : select member0_.id as id1_1_, member0_.username as username2_1_ from member member0_ where member0_.username=?
 2023-10-10 22:38:57.647 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : select log0_.id as id1_0_, log0_.message as message2_0_ from log log0_ where log0_.message=?
 ```
+
+## 트랜잭션 전파 활용5 - 전파 롤백
+
+#### 내부 논리 트랜잭션에서 예외가 발생한 경우
+- rollback-only 마크를 트랜잭션 매니저에 남긴다.
+- 따라서 물리 트랜잭션을 커밋하는 시점에 해당 마크때문에 물리 트랜잭션이 롤백된다.
+> 현재 예제에서는 RuntimeException을 던지기 때문에 트랜잭션 매니저가 실제로 rollback-only 마크를 참고하지는 않는다.
+
+![img.png](img/img_14.png)
+
