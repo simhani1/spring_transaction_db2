@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Slf4j
 @SpringBootTest
@@ -34,5 +35,24 @@ class MemberServiceTest {
         // then
         assertThat(memberRepository.find(username)).isPresent();
         assertThat(logRepository.find(username)).isPresent();
+    }
+
+    /**
+     * memberService     @Transactional: OFF
+     * memberRepository  @Transactional: ON
+     * logRepository     @Transactional: ON Exception
+     */
+    @Test
+    void outerTxOff_fail() {
+        // given
+        String username = "로그예외_outerTxOff_success";
+
+        // when
+        assertThatThrownBy(() -> memberService.joinV1(username))
+                .isInstanceOf(RuntimeException.class);
+
+        // then
+        assertThat(memberRepository.find(username)).isPresent();
+        assertThat(logRepository.find(username)).isEmpty();
     }
 }
