@@ -597,3 +597,35 @@ txManager.rollback(inner);
 > 
 > 이 경우 회원은 저장되지만, 회원 이력 로그는 롤백된다.
 > 따라서 `데이터 정합성` 문제가 발생할 수 있다.
+
+## 트랜잭션 전파 활용3 - 단일 트랜잭션
+
+#### Service: Transaction On, Repository: Transaction Off
+- service가 시작할 때 모든 로직을 하나의 트랜잭션으로 묶인다.
+
+```text
+2023-10-10 21:47:30.166 DEBUG 62912 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [hello.springtx.propogation.MemberService.joinV1]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-10 21:47:30.166 DEBUG 62912 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(2122810288<open>)] for JPA transaction
+2023-10-10 21:47:30.168 DEBUG 62912 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@7c47b0f8]
+2023-10-10 21:47:30.168 TRACE 62912 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.MemberService.joinV1]
+2023-10-10 21:47:30.173  INFO 62912 --- [    Test worker] h.springtx.propogation.MemberService     : == memberRepository 호출 시작 ==
+2023-10-10 21:47:30.175  INFO 62912 --- [    Test worker] h.springtx.propogation.MemberRepository  : member 저장
+2023-10-10 21:47:30.178 DEBUG 62912 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-10 21:47:30.202  INFO 62912 --- [    Test worker] h.springtx.propogation.MemberService     : == memberRepository 호출 종료 ==
+2023-10-10 21:47:30.202  INFO 62912 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 시작 ==
+2023-10-10 21:47:30.204  INFO 62912 --- [    Test worker] h.springtx.propogation.LogRepository     : log 저장
+2023-10-10 21:47:30.204 DEBUG 62912 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-10 21:47:30.205  INFO 62912 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 종료 ==
+2023-10-10 21:47:30.205 TRACE 62912 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.MemberService.joinV1]
+2023-10-10 21:47:30.205 DEBUG 62912 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-10 21:47:30.205 DEBUG 62912 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(2122810288<open>)]
+2023-10-10 21:47:30.211 DEBUG 62912 --- [    Test worker] org.hibernate.SQL                        : insert into member (username, id) values (?, ?)
+2023-10-10 21:47:30.213 DEBUG 62912 --- [    Test worker] org.hibernate.SQL                        : insert into log (message, id) values (?, ?)
+2023-10-10 21:47:30.214 DEBUG 62912 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(2122810288<open>)] after transaction
+2023-10-10 21:47:30.266 DEBUG 62912 --- [    Test worker] org.hibernate.SQL                        : select member0_.id as id1_1_, member0_.username as username2_1_ from member member0_ where member0_.username=?
+2023-10-10 21:47:30.294 DEBUG 62912 --- [    Test worker] org.hibernate.SQL                        : select log0_.id as id1_0_, log0_.message as message2_0_ from log log0_ where log0_.message=?
+```
+
+#### Repository의 트랜잭션을 따로 분리하고 싶다면?
+- 단순한 해결 방법은 트랜잭션이 있는 메서드와 없는 메서드를 따로 만들어서 호출 시점에 적절한 것을 선택하도록 설계해야 한다.
+- 그러나 좋지 않은 방법이고, 이를 해결할 수 있는 것이 `트랜잭션 전파`를 활용하는 것이다.

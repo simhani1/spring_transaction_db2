@@ -3,7 +3,6 @@ package hello.springtx.propogation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
 import java.util.Optional;
@@ -15,7 +14,7 @@ public class LogRepository {
 
     private final EntityManager em;
 
-    @Transactional
+//    @Transactional
     public void save(Log logMessage) {
         log.info("log 저장");
         em.persist(logMessage);
