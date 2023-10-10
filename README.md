@@ -685,7 +685,6 @@ txManager.rollback(inner);
 - 로그 기록을 추후에 복구할 수 있는 방식으로 교체를 한다고 하자.
 
 #### 회원 가입을 시도한 로그를 남기는데, 실패하더라도 회원가입은 유지되도록 요구사항을 변경
-
 > [!IMPORTANT]
 > 
 > 아래 코드를 보면, 로그를 기록하다가 예외가 발생하면 처리를 하고 정상흐름을 진행시킨다.
@@ -729,3 +728,66 @@ txManager.rollback(inner);
 
 - 흐름
 ![img.png](img/img_15.png)
+
+## 트랜잭션 전파 활용7 - 복구 REQUIRES_NEW
+
+#### 트랜잭션 옵션 설정
+- 로그를 저장하는 과정의 트랜잭션을 아예 분리시키는 방법이다.
+- 로그를 저장하다 롤백이 발생해도 별도의 트랜잭션으로 분리되어 있으므로 물리 트랜잭션은 문제없이 커밋된다.
+- 그러나 하나의 HTTP 요청에 2개의 DB 커넥션을 사용하고 있으므로 성능 하락 문제를 신경써야 한다.
+```java
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void save(Log logMessage) {
+        log.info("log 저장");
+        em.persist(logMessage);
+        if (logMessage.getMessage().contains("로그예외")) {
+            log.info("log 저장 시 예외 발생");
+            throw new RuntimeException("예외 발생");
+        }
+    }
+```
+
+- 결과
+```text
+2023-10-10 23:17:20.025 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [hello.springtx.propogation.MemberService.joinV2]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-10 23:17:20.025 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(349399986<open>)] for JPA transaction
+2023-10-10 23:17:20.027 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@7b7b1448]
+2023-10-10 23:17:20.027 TRACE 64498 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.MemberService.joinV2]
+2023-10-10 23:17:20.031  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberService     : == memberRepository 호출 시작 ==
+2023-10-10 23:17:20.032 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Found thread-bound EntityManager [SessionImpl(349399986<open>)] for JPA transaction
+2023-10-10 23:17:20.032 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Participating in existing transaction
+2023-10-10 23:17:20.032 TRACE 64498 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.MemberRepository.save]
+2023-10-10 23:17:20.034  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberRepository  : member 저장
+2023-10-10 23:17:20.037 DEBUG 64498 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-10 23:17:20.057 TRACE 64498 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.MemberRepository.save]
+2023-10-10 23:17:20.058  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberService     : == memberRepository 호출 종료 ==
+2023-10-10 23:17:20.058  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 시작 ==
+2023-10-10 23:17:20.058 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Found thread-bound EntityManager [SessionImpl(349399986<open>)] for JPA transaction
+2023-10-10 23:17:20.058 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Suspending current transaction, creating new transaction with name [hello.springtx.propogation.LogRepository.save]
+2023-10-10 23:17:20.058 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(484103705<open>)] for JPA transaction
+2023-10-10 23:17:20.058 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@319058ce]
+2023-10-10 23:17:20.058 TRACE 64498 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.LogRepository.save]
+2023-10-10 23:17:20.061  INFO 64498 --- [    Test worker] h.springtx.propogation.LogRepository     : log 저장
+2023-10-10 23:17:20.061 DEBUG 64498 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-10 23:17:20.062  INFO 64498 --- [    Test worker] h.springtx.propogation.LogRepository     : log 저장 시 예외 발생
+2023-10-10 23:17:20.063 TRACE 64498 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.LogRepository.save] after exception: java.lang.RuntimeException: 예외 발생
+2023-10-10 23:17:20.064 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction rollback
+2023-10-10 23:17:20.064 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Rolling back JPA transaction on EntityManager [SessionImpl(484103705<open>)]
+2023-10-10 23:17:20.065 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(484103705<open>)] after transaction
+2023-10-10 23:17:20.065 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Resuming suspended transaction after completion of inner transaction
+2023-10-10 23:17:20.065  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberService     : log 저장에 실패했습니다. logMessage=로그예외_recoverException_success
+2023-10-10 23:17:20.065  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberService     : 정상 흐름 반환
+2023-10-10 23:17:20.065  INFO 64498 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 종료 ==
+2023-10-10 23:17:20.065 TRACE 64498 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.MemberService.joinV2]
+2023-10-10 23:17:20.065 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-10 23:17:20.065 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(349399986<open>)]
+2023-10-10 23:17:20.070 DEBUG 64498 --- [    Test worker] org.hibernate.SQL                        : insert into member (username, id) values (?, ?)
+2023-10-10 23:17:20.072 DEBUG 64498 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(349399986<open>)] after transaction
+2023-10-10 23:17:20.125 DEBUG 64498 --- [    Test worker] org.hibernate.SQL                        : select member0_.id as id1_1_, member0_.username as username2_1_ from member member0_ where member0_.username=?
+2023-10-10 23:17:20.153 DEBUG 64498 --- [    Test worker] org.hibernate.SQL                        : select log0_.id as id1_0_, log0_.message as message2_0_ from log log0_ where log0_.message=?
+```
+
+#### 해결책
+- 커넥션을 두 개 사용하는 문제를 구조적으로 해결하는 방법 중 하나는 `퍼사드 패턴`을 사용하는 것이다.
+![img.png](img/img_16.png)
+- 그림과 같이 별도의 클래스에서 회원가입과 로그 기록 로직을 별도로 호출하게끔 하면 하나의 커넥션을 이용하여 처리가 가능해진다.

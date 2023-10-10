@@ -130,4 +130,22 @@ class MemberServiceTest {
         assertThat(memberRepository.find(username)).isEmpty();
         assertThat(logRepository.find(username)).isEmpty();
     }
+
+    /**
+     * memberService     @Transactional: ON
+     * memberRepository  @Transactional: ON
+     * logRepository     @Transactional: ON(REQUIRES_NEW) Exception
+     */
+    @Test
+    void recoverException_success() {
+        // given
+        String username = "로그예외_recoverException_success";
+
+        // when
+        memberService.joinV2(username);
+
+        // then: 로그 기록만 롤백되어야 한다.
+        assertThat(memberRepository.find(username)).isPresent();
+        assertThat(logRepository.find(username)).isEmpty();
+    }
 }
