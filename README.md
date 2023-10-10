@@ -678,3 +678,54 @@ txManager.rollback(inner);
 
 ![img.png](img/img_14.png)
 
+## 트랜잭션 전파 활용6 - 복구 REQUIRED
+
+- 앞서 회원가입과 로그를 저장하는 과정을 하나의 트랜잭션으로 묶어서 데이터 정합성 문제를 해결했다.
+- 그런데 로그를 기록하는 과정에 에러가 자주 발생하여 회원가입을 실패하는 경우가 많아졌고, 회원 이탈로 이어진다고 하자.
+- 로그 기록을 추후에 복구할 수 있는 방식으로 교체를 한다고 하자.
+
+#### 회원 가입을 시도한 로그를 남기는데, 실패하더라도 회원가입은 유지되도록 요구사항을 변경
+
+> [!IMPORTANT]
+> 
+> 아래 코드를 보면, 로그를 기록하다가 예외가 발생하면 처리를 하고 정상흐름을 진행시킨다.
+> 이렇게 된다면 회원가입은 정상적으로 진행되고 로그만 기록하는데 실패할 것 같다.(많은 개발자가 이 실수를 하니 조심하자.)
+> 그러나 실제로는 커밋되지 않고 전체 트랜잭션이 롤백된다.
+
+```java
+    @Transactional
+    public void joinV2(String username) {
+        Member member = new Member(username);
+        Log logMessage = new Log(username);
+
+        log.info("== memberRepository 호출 시작 ==");
+        memberRepository.save(member);
+        log.info("== memberRepository 호출 종료 ==");
+
+        log.info("== logRepository 호출 시작 ==");
+        // 로그 저장에 실패해서 롤백하지 않도록
+        try {
+            logRepository.save(logMessage);
+        } catch (RuntimeException e) {
+            log.info("log 저장에 실패했습니다. logMessage={}", logMessage.getMessage());
+            log.info("정상 흐름 반환");
+        }
+        log.info("== logRepository 호출 종료 ==");
+    }
+```
+
+#### 내부 트랜잭션에서의 롤백
+- 내부 트랜잭션에서 롤백이 발생하면 `rollback-only` 마크를 트랜잭션 매니저에게 기록하도록 한다.
+- 따라서 우리가 예외를 처리하여 정상흐름으로 동작하도록 설계했더라도, 물리 트랜잭션이 커밋되는 시점에 해당 마크때문에 롤백되고 `UnexpectedRollbackException` 예외를 발생시킨다.
+```text
+2023-10-10 22:58:22.081  INFO 64153 --- [    Test worker] h.springtx.propogation.MemberService     : log 저장에 실패했습니다. logMessage=로그예외_recoverException_fail
+2023-10-10 22:58:22.081  INFO 64153 --- [    Test worker] h.springtx.propogation.MemberService     : 정상 흐름 반환
+2023-10-10 22:58:22.081  INFO 64153 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 종료 ==
+2023-10-10 22:58:22.082 TRACE 64153 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.MemberService.joinV2]
+2023-10-10 22:58:22.082 DEBUG 64153 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-10 22:58:22.082 DEBUG 64153 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(179915314<open>)]
+2023-10-10 22:58:22.082 DEBUG 64153 --- [    Test worker] cResourceLocalTransactionCoordinatorImpl : On commit, transaction was marked for roll-back only, rolling back
+```
+
+- 흐름
+![img.png](img/img_15.png)
