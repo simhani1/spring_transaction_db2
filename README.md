@@ -629,3 +629,42 @@ txManager.rollback(inner);
 #### Repository의 트랜잭션을 따로 분리하고 싶다면?
 - 단순한 해결 방법은 트랜잭션이 있는 메서드와 없는 메서드를 따로 만들어서 호출 시점에 적절한 것을 선택하도록 설계해야 한다.
 - 그러나 좋지 않은 방법이고, 이를 해결할 수 있는 것이 `트랜잭션 전파`를 활용하는 것이다.
+
+## 트랜잭션 전파 활용4 - 전파 커밋
+
+#### Service: Transaction On, Repository: Transaction On
+- 모든 곳에 트랜잭션 어노테이션이 붙어있으므로 모든 논리 트랜잭션을 커밋해야 물리 트랜잭션도 커밋된다.
+- 하나라도 롤백되면 물리 트랜잭션은 롤백된다.
+![img.png](img/img_12.png)
+![img.png](img/img_13.png)
+
+```text
+2023-10-10 22:38:57.509 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Creating new transaction with name [hello.springtx.propogation.MemberService.joinV1]: PROPAGATION_REQUIRED,ISOLATION_DEFAULT
+2023-10-10 22:38:57.509 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Opened new EntityManager [SessionImpl(349399986<open>)] for JPA transaction
+2023-10-10 22:38:57.511 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Exposing JPA transaction as JDBC [org.springframework.orm.jpa.vendor.HibernateJpaDialect$HibernateConnectionHandle@7b7b1448]
+2023-10-10 22:38:57.511 TRACE 63641 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.MemberService.joinV1]
+2023-10-10 22:38:57.517  INFO 63641 --- [    Test worker] h.springtx.propogation.MemberService     : == memberRepository 호출 시작 ==
+2023-10-10 22:38:57.517 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Found thread-bound EntityManager [SessionImpl(349399986<open>)] for JPA transaction
+2023-10-10 22:38:57.517 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Participating in existing transaction
+2023-10-10 22:38:57.518 TRACE 63641 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.MemberRepository.save]
+2023-10-10 22:38:57.520  INFO 63641 --- [    Test worker] h.springtx.propogation.MemberRepository  : member 저장
+2023-10-10 22:38:57.523 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-10 22:38:57.550 TRACE 63641 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.MemberRepository.save]
+2023-10-10 22:38:57.550  INFO 63641 --- [    Test worker] h.springtx.propogation.MemberService     : == memberRepository 호출 종료 ==
+2023-10-10 22:38:57.550  INFO 63641 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 시작 ==
+2023-10-10 22:38:57.550 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Found thread-bound EntityManager [SessionImpl(349399986<open>)] for JPA transaction
+2023-10-10 22:38:57.550 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Participating in existing transaction
+2023-10-10 22:38:57.551 TRACE 63641 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Getting transaction for [hello.springtx.propogation.LogRepository.save]
+2023-10-10 22:38:57.554  INFO 63641 --- [    Test worker] h.springtx.propogation.LogRepository     : log 저장
+2023-10-10 22:38:57.554 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : call next value for hibernate_sequence
+2023-10-10 22:38:57.554 TRACE 63641 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.LogRepository.save]
+2023-10-10 22:38:57.554  INFO 63641 --- [    Test worker] h.springtx.propogation.MemberService     : == logRepository 호출 종료 ==
+2023-10-10 22:38:57.555 TRACE 63641 --- [    Test worker] o.s.t.i.TransactionInterceptor           : Completing transaction for [hello.springtx.propogation.MemberService.joinV1]
+2023-10-10 22:38:57.555 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Initiating transaction commit
+2023-10-10 22:38:57.555 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Committing JPA transaction on EntityManager [SessionImpl(349399986<open>)]
+2023-10-10 22:38:57.561 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : insert into member (username, id) values (?, ?)
+2023-10-10 22:38:57.564 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : insert into log (message, id) values (?, ?)
+2023-10-10 22:38:57.565 DEBUG 63641 --- [    Test worker] o.s.orm.jpa.JpaTransactionManager        : Closing JPA EntityManager [SessionImpl(349399986<open>)] after transaction
+2023-10-10 22:38:57.621 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : select member0_.id as id1_1_, member0_.username as username2_1_ from member member0_ where member0_.username=?
+2023-10-10 22:38:57.647 DEBUG 63641 --- [    Test worker] org.hibernate.SQL                        : select log0_.id as id1_0_, log0_.message as message2_0_ from log log0_ where log0_.message=?
+```
